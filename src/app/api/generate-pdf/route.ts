@@ -3,6 +3,8 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { convert } from "html-to-text";
 import dbConnect from "@/lib/mongodb";
 import Client from "@/models/Client";
+import path from "path";
+import fs from "fs";
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -179,7 +181,6 @@ export async function POST(req: NextRequest) {
   let page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
 
   // Get the fonts
-  // Get the fonts
   const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
   const boldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
   const italicFont = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
@@ -187,34 +188,46 @@ export async function POST(req: NextRequest) {
     StandardFonts.TimesRomanBoldItalic
   );
 
-  // Add company information in the top left corner
+  // Add the logo
+  const logoPath = path.join(process.cwd(), "public", "hyseco-logo.png");
+  const logoImage = await pdfDoc.embedPng(fs.readFileSync(logoPath));
+  const logoDims = logoImage.scale(0.5); // Adjust scale as needed
+  page.drawImage(logoImage, {
+    x: MARGIN,
+    y: A4_HEIGHT - MARGIN - logoDims.height,
+    width: logoDims.width,
+    height: logoDims.height,
+  });
+
+  // Add company information below the logo
+  const infoStartY = A4_HEIGHT - MARGIN - logoDims.height - 20; // Add some space below the logo
   page.drawText("HYSECO", {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN,
+    y: infoStartY,
     size: 12,
     font: boldFont,
   });
   page.drawText("18 rue de Chevreloup", {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 15,
+    y: infoStartY - 15,
     size: 10,
     font,
   });
   page.drawText("78590 NOISY-LE-ROI", {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 30,
+    y: infoStartY - 30,
     size: 10,
     font,
   });
   page.drawText("Port : 06 59 82 05 81", {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 45,
+    y: infoStartY - 45,
     size: 10,
     font,
   });
   page.drawText("E-mail : contact@hyseco.net", {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 60,
+    y: infoStartY - 60,
     size: 10,
     font,
   });
@@ -222,7 +235,7 @@ export async function POST(req: NextRequest) {
   // Add dynamic content
   page.drawText(`Devis contractuel N° ${formData.devisNumber}`, {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 90,
+    y: A4_HEIGHT - MARGIN - 200,
     size: 14,
     font: boldFont,
   });
@@ -244,13 +257,13 @@ export async function POST(req: NextRequest) {
   // Date and validity
   page.drawText(`Date: ${formData.date}`, {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 120,
+    y: A4_HEIGHT - MARGIN - 245,
     size: 10,
     font,
   });
   page.drawText(`Durée de validité: ${formData.validityPeriod}`, {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 135,
+    y: A4_HEIGHT - MARGIN - 260,
     size: 10,
     font,
   });
@@ -258,13 +271,13 @@ export async function POST(req: NextRequest) {
   // Intervention address and periodicity
   page.drawText(`Adresse d'intervention: ${formData.interventionAddress}`, {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 150,
+    y: A4_HEIGHT - MARGIN - 275,
     size: 10,
     font,
   });
   page.drawText(`Périodicité: ${formData.periodicity}`, {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 165,
+    y: A4_HEIGHT - MARGIN - 290,
     size: 10,
     font,
   });
@@ -272,7 +285,7 @@ export async function POST(req: NextRequest) {
   // Task details
   page.drawText(`${formData.taskTitle}`, {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 190,
+    y: A4_HEIGHT - MARGIN - 305,
     size: 12,
     font: boldFont,
   });
@@ -287,7 +300,7 @@ export async function POST(req: NextRequest) {
     boldItalicFont,
     10,
     MARGIN,
-    A4_HEIGHT - MARGIN - 210,
+    A4_HEIGHT - MARGIN - 320,
     A4_WIDTH - 2 * MARGIN
   );
 

@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "pdf-lib";
 import { convert } from "html-to-text";
 import dbConnect from "@/lib/mongodb";
 import Client from "@/models/Client";
 import path from "path";
 import fs from "fs";
+import { format } from "date-fns";
+import { calculateTotalsWithTva } from "@/lib/utils";
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
 const MARGIN = 50;
+const BAND_WIDTH = 3; // Width of the color band
+const BAND_COLOR = rgb(0, 0.651, 0.678); // Teal color (adjust as needed)
 
 function addStyledTextWithWrapping(
   pdfDoc: PDFDocument,
@@ -21,7 +25,8 @@ function addStyledTextWithWrapping(
   fontSize: number,
   startX: number,
   startY: number,
-  maxWidth: number
+  maxWidth: number,
+  monthlyAmount: number
 ) {
   const text = convert(html, {
     wordwrap: null,
@@ -92,13 +97,28 @@ function addStyledTextWithWrapping(
             : font,
       });
     }
-
     currentY -= lineSpacing;
     if (currentY < MARGIN) {
       page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
       currentY = A4_HEIGHT - MARGIN;
     }
   }
+
+  // Add monthly amount line after the last line of task description
+  currentY -= lineSpacing; // Add some extra space
+  if (currentY < MARGIN) {
+    page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+    currentY = A4_HEIGHT - MARGIN;
+  }
+  page.drawText(
+    `Montant forfaitaire H.T. mensuel (T.V.A. 20%) : ${monthlyAmount} €`,
+    {
+      x: startX,
+      y: currentY,
+      size: fontSize,
+      font: boldFont,
+    }
+  );
 
   return page;
 }
@@ -165,6 +185,166 @@ function addTextWithWrapping(
   return page;
 }
 
+function addFooter(page: PDFPage, font: PDFFont) {
+  const { width, height } = page.getSize();
+  const fontSize = 8; // Small font size
+
+  // Left footer text
+  page.drawText(
+    "Siège social : HYSECO - 18 rue de chevreloup 78590 NOISY-LE-ROI",
+    {
+      x: MARGIN,
+      y: MARGIN / 2,
+      size: fontSize,
+      font: font,
+    }
+  );
+  page.drawText(
+    "SASU au capital de 1000€ RCS Versailles - SIRET : 89334902200011 - APE : 8121Z",
+    {
+      x: MARGIN,
+      y: MARGIN / 2 - fontSize - 2,
+      size: fontSize,
+      font: font,
+    }
+  );
+  page.drawText(
+    "Assurance responsabilité civile n° 0000010746636504 - AXA Assurances - 78000 VERSAILLES",
+    {
+      x: MARGIN,
+      y: MARGIN / 2 - (fontSize + 2) * 2,
+      size: fontSize,
+      font: font,
+    }
+  );
+
+  // Right footer text
+  const rightText = "Montant exprimés en euros";
+  const textWidth = font.widthOfTextAtSize(rightText, fontSize);
+  page.drawText(rightText, {
+    x: width - MARGIN - textWidth,
+    y: MARGIN / 2,
+    size: fontSize,
+    font: font,
+  });
+}
+
+function isPageBlank(page: PDFPage): boolean {
+  return Math.abs(page.getHeight() - A4_HEIGHT) < 0.1; // Allow for small floating-point differences
+}
+
+function addColorBands(page: PDFPage) {
+  const { width, height } = page.getSize();
+
+  // Left vertical band
+  page.drawRectangle({
+    x: 0,
+    y: 0,
+    width: BAND_WIDTH,
+    height: height,
+    color: BAND_COLOR,
+  });
+
+  // Bottom horizontal band
+  page.drawRectangle({
+    x: 0,
+    y: 0,
+    width: width,
+    height: BAND_WIDTH,
+    color: BAND_COLOR,
+  });
+}
+
+async function addFinalPage(
+  pdfDoc: PDFDocument,
+  font: PDFFont,
+  boldFont: PDFFont
+) {
+  const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+  addColorBands(page);
+  const { width, height } = page.getSize();
+
+  // Add "ACCEPTATION DU DEVIS" title
+  page.drawText("ACCEPTATION DU DEVIS", {
+    x: MARGIN,
+    y: height - MARGIN - 20,
+    size: 14,
+    font: boldFont,
+  });
+
+  // Add the text content
+  const content = `Par signature et apposition du cachet de son entreprise, le contractant atteste que ce présent devis devient de plein droit un contrat engageant les deux parties.
+Tout devis doit être impérativement accepté pour bénéficier des conditions de garantie de notre assurance. Aucun travail effectif ne sera réalisé sans devis accepté.
+Si PERIODICITE autre que sur demande / ponctuelle, le contrat est souscrit sans limitation de durée et se renouvelle par tacite reconduction annuelle. Le contrat est résiliable au gré de chaque partie par lettre recommandée avec accusé de réception trois mois avant la date anniversaire du contrat`;
+
+  addTextWithWrapping(
+    pdfDoc,
+    page,
+    content,
+    font,
+    10,
+    MARGIN,
+    height - MARGIN - 50,
+    width - 2 * MARGIN
+  );
+
+  page.drawText("Pour le Client, signataire (Cachet, date, signature) :", {
+    x: MARGIN,
+    y: height - MARGIN - 200,
+    size: 10,
+    font: font,
+  });
+  page.drawText("A : ........................ le ....../....../.......", {
+    x: MARGIN,
+    y: height - MARGIN - 215,
+    size: 10,
+    font: font,
+  });
+
+  page.drawText("Pour HYSECO :", {
+    x: width / 2 + MARGIN / 2,
+    y: height - MARGIN - 215,
+    size: 10,
+    font: font,
+  });
+
+  // Add "Devis reçu avant l'exécution des travaux" text
+  page.drawText("Devis reçu avant l'exécution des travaux", {
+    x: MARGIN,
+    y: height - MARGIN - 230,
+    size: 10,
+    font: font,
+  });
+
+  // Add payment conditions
+  page.drawText(
+    "Conditions de paiement : par chèque/virement/prélèvement à réception de facture.",
+    {
+      x: MARGIN,
+      y: height - MARGIN - 330,
+      size: 10,
+      font: font,
+      color: rgb(1, 0, 0), // Red color
+    }
+  );
+
+  // Add logo
+  const logoPath = path.join(process.cwd(), "public", "hyseco-logo.png");
+  const logoImage = await pdfDoc.embedPng(fs.readFileSync(logoPath));
+  const logoDims = logoImage.scale(0.3); // Adjust scale as needed
+  page.drawImage(logoImage, {
+    x: (width - logoDims.width) / 2,
+    y: height - MARGIN - 400,
+    width: logoDims.width,
+    height: logoDims.height,
+  });
+
+  // Add footer
+  addFooter(page, font);
+
+  return page;
+}
+
 export async function POST(req: NextRequest) {
   await dbConnect();
 
@@ -177,9 +357,6 @@ export async function POST(req: NextRequest) {
   // Create a new PDF document
   const pdfDoc = await PDFDocument.create();
 
-  // Add the first page
-  let page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-
   // Get the fonts
   const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
   const boldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
@@ -187,6 +364,17 @@ export async function POST(req: NextRequest) {
   const boldItalicFont = await pdfDoc.embedFont(
     StandardFonts.TimesRomanBoldItalic
   );
+
+  // Function to add a new page with footer
+  const addPageWithFooter = () => {
+    const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+    addFooter(page, font);
+    addColorBands(page);
+    return page;
+  };
+
+  // Add the first page
+  let page = addPageWithFooter();
 
   // Add the logo
   const logoPath = path.join(process.cwd(), "public", "hyseco-logo.png");
@@ -240,46 +428,65 @@ export async function POST(req: NextRequest) {
     font: boldFont,
   });
 
-  // Client details
-  page.drawText(`Client: ${formData.clientName}`, {
-    x: 350,
-    y: A4_HEIGHT - MARGIN,
-    size: 10,
-    font,
-  });
-  page.drawText(`Adresse: ${formData.clientAddress}`, {
-    x: 350,
-    y: A4_HEIGHT - MARGIN - 15,
-    size: 10,
-    font,
-  });
-
   // Date and validity
-  page.drawText(`Date: ${formData.date}`, {
-    x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 245,
+  page.drawText(`Date: ${format(new Date(formData.date), "dd/MM/yyyy")}`, {
+    x: MARGIN + 200,
+    y: A4_HEIGHT - MARGIN - 200,
     size: 10,
     font,
   });
   page.drawText(`Durée de validité: ${formData.validityPeriod}`, {
-    x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 260,
+    x: MARGIN + 300,
+    y: A4_HEIGHT - MARGIN - 200,
     size: 10,
     font,
   });
 
+  // Client details
+  page.drawText(
+    `Client: ${formData.clientFirstName} ${formData.clientLastName}`,
+    {
+      x: 350,
+      y: A4_HEIGHT - MARGIN,
+      size: 10,
+      font,
+    }
+  );
+  page.drawText(
+    `Adresse: ${formData.clientStreet}, ${formData.clientCity}, ${formData.clientPostalCode}`,
+    {
+      x: 350,
+      y: A4_HEIGHT - MARGIN - 15,
+      size: 10,
+      font,
+    }
+  );
+
   // Intervention address and periodicity
-  page.drawText(`Adresse d'intervention: ${formData.interventionAddress}`, {
+  page.drawText(
+    `Adresse d'intervention: ${formData.interventionStreet}, ${formData.interventionCity}, ${formData.interventionPostalCode}`,
+    {
+      x: MARGIN,
+      y: A4_HEIGHT - MARGIN - 215,
+      size: 10,
+      font,
+    }
+  );
+  page.drawText(`Périodicité: ${formData.periodicity}`, {
     x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 275,
+    y: A4_HEIGHT - MARGIN - 230,
     size: 10,
     font,
   });
-  page.drawText(`Périodicité: ${formData.periodicity}`, {
-    x: MARGIN,
-    y: A4_HEIGHT - MARGIN - 290,
-    size: 10,
-    font,
+
+  // Add "DESCRIPTIF DES TRAVAUX" title
+  const titleText = "DESCRIPTIF DES TRAVAUX";
+  const titleWidth = boldFont.widthOfTextAtSize(titleText, 14);
+  page.drawText(titleText, {
+    x: (A4_WIDTH - titleWidth) / 2,
+    y: A4_HEIGHT - MARGIN - 245,
+    size: 14,
+    font: boldFont,
   });
 
   // Task details
@@ -301,13 +508,66 @@ export async function POST(req: NextRequest) {
     10,
     MARGIN,
     A4_HEIGHT - MARGIN - 320,
-    A4_WIDTH - 2 * MARGIN
+    A4_WIDTH - 2 * MARGIN,
+    formData.priceHT
   );
 
-  // Price
-  page.drawText(`Prix H.T.: ${formData.priceHT} €`, {
-    x: A4_WIDTH - MARGIN - 150,
-    y: MARGIN,
+  // Price details
+  const priceHT = parseFloat(formData.priceHT);
+  const { tva, ttc } = calculateTotalsWithTva(priceHT);
+
+  // Create a box for price details
+  const boxWidth = 200;
+  const boxHeight = 80;
+  const boxX = A4_WIDTH - MARGIN - boxWidth;
+  const boxY = MARGIN;
+
+  // Draw the box
+  page.drawRectangle({
+    x: boxX,
+    y: boxY,
+    width: boxWidth,
+    height: boxHeight,
+    borderColor: rgb(0.8, 0.8, 0.8),
+    borderWidth: 1,
+  });
+
+  // Add price details
+  page.drawText("Total H.T.", {
+    x: boxX + 10,
+    y: boxY + boxHeight - 20,
+    size: 10,
+    font,
+  });
+  page.drawText(`${priceHT.toFixed(2)}`, {
+    x: boxX + boxWidth - 60,
+    y: boxY + boxHeight - 20,
+    size: 10,
+    font,
+  });
+
+  page.drawText("Total T.V.A. (20%)", {
+    x: boxX + 10,
+    y: boxY + boxHeight - 40,
+    size: 10,
+    font,
+  });
+  page.drawText(`${tva.toFixed(2)}`, {
+    x: boxX + boxWidth - 60,
+    y: boxY + boxHeight - 40,
+    size: 10,
+    font,
+  });
+
+  page.drawText("Total T.T.C.", {
+    x: boxX + 10,
+    y: boxY + boxHeight - 60,
+    size: 12,
+    font: boldFont,
+  });
+  page.drawText(`${ttc.toFixed(2)}`, {
+    x: boxX + boxWidth - 60,
+    y: boxY + boxHeight - 60,
     size: 12,
     font: boldFont,
   });
@@ -364,6 +624,24 @@ Le client accepte que des photos du chantier puissent être prises et utilisées
     A4_HEIGHT - MARGIN - 30,
     A4_WIDTH - 2 * MARGIN
   );
+
+  // Before saving the PDF, add footer to all pages except the last one if it's blank
+  const pageCount = pdfDoc.getPageCount();
+  for (let i = 0; i < pageCount - 1; i++) {
+    addFooter(pdfDoc.getPage(i), font);
+  }
+
+  // Check if the last page has content before adding a footer
+  const lastPage = pdfDoc.getPage(pageCount - 1);
+  if (!isPageBlank(lastPage)) {
+    addFooter(lastPage, font);
+  } else {
+    // Remove the last page if it's blank
+    pdfDoc.removePage(pageCount - 1);
+  }
+
+  // Add final page
+  await addFinalPage(pdfDoc, font, boldFont);
 
   // Save the PDF
   const pdfBytes = await pdfDoc.save();

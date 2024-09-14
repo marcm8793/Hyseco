@@ -11,20 +11,26 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import dynamic from "next/dynamic";
 import "react-quill/dist/quill.snow.css";
 
 const ReactQuill = dynamic(() => import("react-quill"), { ssr: false });
 
 const formSchema = z.object({
-  clientName: z.string().min(2, { message: "Client name is required" }),
-  clientAddress: z.string().min(2, { message: "Client address is required" }),
+  clientFirstName: z.string().min(2, { message: "First name is required" }),
+  clientLastName: z.string().min(2, { message: "Last name is required" }),
+  clientStreet: z.string().min(2, { message: "Street is required" }),
+  clientCity: z.string().min(2, { message: "City is required" }),
+  clientPostalCode: z.string().min(2, { message: "Postal code is required" }),
   devisNumber: z.string().min(1, { message: "Devis number is required" }),
-  date: z.string().min(1, { message: "Date is required" }),
+  date: z.date({ required_error: "Date is required" }),
   validityPeriod: z.string().min(1, { message: "Validity period is required" }),
-  interventionAddress: z
+  interventionStreet: z.string().min(2, { message: "Street is required" }),
+  interventionCity: z.string().min(2, { message: "City is required" }),
+  interventionPostalCode: z
     .string()
-    .min(2, { message: "Intervention address is required" }),
+    .min(2, { message: "Postal code is required" }),
   periodicity: z.string().min(1, { message: "Periodicity is required" }),
   taskTitle: z.string().min(2, { message: "Task title is required" }),
   taskDescription: z
@@ -41,12 +47,17 @@ export default function PDFForm({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      clientName: "",
-      clientAddress: "",
+      clientFirstName: "",
+      clientLastName: "",
+      clientStreet: "",
+      clientCity: "",
+      clientPostalCode: "",
       devisNumber: "",
-      date: "",
+      date: new Date(),
       validityPeriod: "",
-      interventionAddress: "",
+      interventionStreet: "",
+      interventionCity: "",
+      interventionPostalCode: "",
       periodicity: "",
       taskTitle: "",
       taskDescription: "",
@@ -61,33 +72,77 @@ export default function PDFForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmitForm)} className="space-y-8">
-        <FormField
-          control={form.control}
-          name="clientName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Client Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter client name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {/* Repeat this pattern for all other fields */}
-        <FormField
-          control={form.control}
-          name="clientAddress"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Client Address</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter client address" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="flex flex-wrap gap-4">
+          <FormField
+            control={form.control}
+            name="clientFirstName"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Prénom</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter first name" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="clientLastName"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Nom</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter last name" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-4">
+          <FormField
+            control={form.control}
+            name="clientStreet"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Rue</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter street" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="clientCity"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Ville</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter city" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="clientPostalCode"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Code Postal</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter postal code" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <FormField
           control={form.control}
           name="devisNumber"
@@ -101,6 +156,7 @@ export default function PDFForm({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="date"
@@ -108,12 +164,13 @@ export default function PDFForm({
             <FormItem>
               <FormLabel>Date</FormLabel>
               <FormControl>
-                <Input placeholder="Enter date" {...field} />
+                <DatePicker date={field.value} onSelect={field.onChange} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="validityPeriod"
@@ -127,19 +184,52 @@ export default function PDFForm({
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="interventionAddress"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Intervention Address</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter intervention address" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+
+        <div className="flex flex-wrap gap-4">
+          <FormField
+            control={form.control}
+            name="interventionStreet"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Rue d&apos;intervention</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter intervention street" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="interventionCity"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Ville d&apos;intervention</FormLabel>
+                <FormControl>
+                  <Input placeholder="Enter intervention city" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="interventionPostalCode"
+            render={({ field }) => (
+              <FormItem className="flex-1">
+                <FormLabel>Code Postal d&apos;intervention</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter intervention postal code"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <FormField
           control={form.control}
           name="periodicity"
@@ -153,6 +243,7 @@ export default function PDFForm({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="taskTitle"
@@ -166,6 +257,7 @@ export default function PDFForm({
             </FormItem>
           )}
         />
+
         <div>
           <label htmlFor="taskDescription">Task Description</label>
           <Controller
@@ -181,6 +273,7 @@ export default function PDFForm({
             )}
           />
         </div>
+
         <FormField
           control={form.control}
           name="priceHT"
@@ -194,6 +287,7 @@ export default function PDFForm({
             </FormItem>
           )}
         />
+
         <Button type="submit">Generate PDF</Button>
       </form>
     </Form>

@@ -8,20 +8,30 @@ if (!MONGODB_URI) {
   );
 }
 
-let cached = (global as any).mongoose;
-
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
+interface MongooseCache {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
 }
 
-async function dbConnect() {
+// Use a type assertion for the global object
+const cached: MongooseCache = (global as { mongoose?: MongooseCache })
+  .mongoose || {
+  conn: null,
+  promise: null,
+};
+
+if (!(global as { mongoose?: MongooseCache }).mongoose) {
+  (global as { mongoose?: MongooseCache }).mongoose = cached;
+}
+
+async function dbConnect(): Promise<typeof mongoose> {
   if (cached.conn) {
     console.log("Using cached connection");
     return cached.conn;
   }
 
   if (!cached.promise) {
-    const opts = {
+    const opts: mongoose.ConnectOptions = {
       bufferCommands: false,
     };
 

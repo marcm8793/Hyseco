@@ -186,7 +186,7 @@ function addTextWithWrapping(
 }
 
 function addFooter(page: PDFPage, font: PDFFont) {
-  const { width, height } = page.getSize();
+  const { width } = page.getSize();
   const fontSize = 8; // Small font size
 
   // Left footer text

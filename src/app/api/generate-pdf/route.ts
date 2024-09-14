@@ -16,12 +16,12 @@ const BAND_COLOR = rgb(0, 0.651, 0.678); // Teal color (adjust as needed)
 
 function addStyledTextWithWrapping(
   pdfDoc: PDFDocument,
-  page: any,
+  page: PDFPage,
   html: string,
-  font: any,
-  boldFont: any,
-  italicFont: any,
-  boldItalicFont: any,
+  font: PDFFont,
+  boldFont: PDFFont,
+  italicFont: PDFFont,
+  boldItalicFont: PDFFont,
   fontSize: number,
   startX: number,
   startY: number,
@@ -125,9 +125,9 @@ function addStyledTextWithWrapping(
 
 function addTextWithWrapping(
   pdfDoc: PDFDocument,
-  page: any,
+  page: PDFPage,
   text: string,
-  font: any,
+  font: PDFFont,
   fontSize: number,
   startX: number,
   startY: number,

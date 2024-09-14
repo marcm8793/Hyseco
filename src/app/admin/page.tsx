@@ -1,12 +1,13 @@
 "use client";
 
-import PDFForm from "@/components/PDFForm";
+import PDFForm, { formSchema } from "@/components/PDFForm";
 import { useState } from "react";
+import { z } from "zod";
 
 export default function Home() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  const handleFormSubmit = async (formData: any) => {
+  const handleFormSubmit = async (formData: z.infer<typeof formSchema>) => {
     const response = await fetch("/api/generate-pdf", {
       method: "POST",
       headers: {

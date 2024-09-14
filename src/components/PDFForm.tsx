@@ -17,7 +17,7 @@ import "react-quill/dist/quill.snow.css";
 
 const ReactQuill = dynamic(() => import("react-quill"), { ssr: false });
 
-const formSchema = z.object({
+export const formSchema = z.object({
   clientFirstName: z.string().min(2, { message: "First name is required" }),
   clientLastName: z.string().min(2, { message: "Last name is required" }),
   clientStreet: z.string().min(2, { message: "Street is required" }),
